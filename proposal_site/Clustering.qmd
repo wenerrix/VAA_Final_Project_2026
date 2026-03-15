@@ -1,0 +1,509 @@
+---
+title: "Proposal_Clustering"
+author: "Gabriella Zhou"
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm"
+format:
+  html:
+    css: styles_the4.css
+---
+
+## 1.Introduction
+
+This prototype focuses on the clustering module of the proposed Shiny application. The goal of the module is to segment customers into behaviorally distinct groups by combining customer-level attributes with transaction-derived features. The analysis uses two related datasets: a customer-level table containing demographic, product, satisfaction, and service variables, and a transaction-level table containing detailed transaction records. By integrating these two sources, the clustering workflow is able to move beyond simple demographic profiling and capture richer patterns of customer behavior.
+
+```{r}
+library(tidyverse)
+library(skimr)
+library(janitor)
+library(lubridate)
+library(cluster)
+library(factoextra)
+library(corrplot)
+library(GGally)
+library(patchwork)
+library(scales)
+library(plotly)
+library(DT)
+```
+
+## 2.Data Preparation
+
+We choose 'A Comprehensive Dataset of Customer Behavior in Latin American Fintech: 12-Month Transactional and Demographic Data for Churn Analysis' dataset.This dataset was compiled to provide empirical data for researchers analyzing fintech customer behavior in emerging markets, addressing the scarcity of real-world behavioral data from Latin America.
+
+Dataset include customer and transaction level table.My clustering mainly based on 'customer-level' data.
+
+```{r}
+customer <- read_csv("data/customer_data.csv")
+transactions <- read_csv("data/transactions_data.csv")
+
+glimpse(customer)
+glimpse(transactions)
+
+dim(customer)
+dim(transactions)
+
+customer %>% names()
+transactions %>% names()
+```
+
+As the missing summary below shows,the main deficiencies are centered on: 'Complaint topics','credit utilization ratio','feature requests, while transaction level variables are almost complete.
+
+```{r}
+missing_summary <- customer %>%
+  summarise(across(everything(), ~mean(is.na(.)))) %>%
+  pivot_longer(cols = everything(),
+               names_to = "variable",
+               values_to = "missing_rate") %>%
+  arrange(desc(missing_rate))
+
+missing_summary %>% print(n = 20)
+missing_summary %>%
+  slice_max(order_by = missing_rate, n = 15) %>%
+  ggplot(aes(x = reorder(variable, missing_rate), y = missing_rate)) +
+  geom_col() +
+  coord_flip() +
+  scale_y_continuous(labels = percent_format()) +
+  labs(
+    title = "Top 15 variables by missing rate",
+    x = NULL,
+    y = "Missing rate"
+  ) +
+  theme_minimal()
+```
+
+Since the first and third variables are also text-based fields, they were excluded from clustering input. `credit_utilization_ratio` was retained because it captures potentially meaningful financial behavior and can be imputed using the median.
+
+```{r}
+transactions <- transactions %>%
+  mutate(date = as.Date(date))
+
+glimpse(transactions)
+summary(transactions)
+```
+
+Then we compress transaction records into "one line per customer" behavioral characteristics.
+
+```{r}
+tx_summary <- transactions %>%
+  group_by(customer_id) %>%
+  summarise(
+    tx_n = n(),
+    tx_total_amount = sum(amount, na.rm = TRUE),
+    tx_avg_amount = mean(amount, na.rm = TRUE),
+    tx_sd_amount = sd(amount, na.rm = TRUE),
+    first_tx_date = min(date, na.rm = TRUE),
+    last_tx_date = max(date, na.rm = TRUE),
+    active_days = n_distinct(date),
+    .groups = "drop"
+  )
+
+glimpse(tx_summary)
+summary(tx_summary)
+
+```
+
+```{r}
+tx_type_share <- transactions %>%
+  count(customer_id, type) %>%
+  group_by(customer_id) %>%
+  mutate(type_share = n / sum(n)) %>%
+  ungroup() %>%
+  select(customer_id, type, type_share) %>%
+  pivot_wider(
+    names_from = type,
+    values_from = type_share,
+    values_fill = 0,
+    names_prefix = "share_"
+  )
+
+glimpse(tx_type_share)
+summary(tx_type_share)
+```
+
+Then we analyse monthly fluctuations characterize to check the stability of customer.Customer activity stability differs widely across the user base
+
+```{r}
+tx_monthly <- transactions %>%
+  mutate(month = floor_date(date, "month")) %>%
+  group_by(customer_id, month) %>%
+  summarise(
+    monthly_n = n(),
+    monthly_amount = sum(amount, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+tx_volatility <- tx_monthly %>%
+  group_by(customer_id) %>%
+  summarise(
+    monthly_n_sd = sd(monthly_n, na.rm = TRUE),
+    monthly_amount_sd = sd(monthly_amount, na.rm = TRUE),
+    monthly_n_mean = mean(monthly_n, na.rm = TRUE),
+    monthly_amount_mean = mean(monthly_amount, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+glimpse(tx_volatility)
+summary(tx_volatility)
+```
+
+```{r}
+customer2 <- customer %>%
+  left_join(tx_summary, by = "customer_id") %>%
+  left_join(tx_type_share, by = "customer_id") %>%
+  left_join(tx_volatility, by = "customer_id")
+
+glimpse(customer2)
+dim(customer2)
+```
+
+After combined the transaction features into customer table. Then we check missing value again and showcase no missing values.This indicates that the integration between customer and transaction tables was successful and that all customers were associated with transaction-based behavioral measures.
+
+```{r}
+customer2 %>%
+  summarise(
+    missing_tx_n = mean(is.na(tx_n)),
+    missing_tx_total_amount = mean(is.na(tx_total_amount)),
+    missing_tx_avg_amount = mean(is.na(tx_avg_amount)),
+    missing_monthly_n_sd = mean(is.na(monthly_n_sd))
+  )
+```
+
+## 3.Analysis
+
+### 3.1 Transformation and Standarzation
+
+```{r}
+p1 <- ggplot(customer2, aes(x = tx_n)) +
+  geom_histogram(bins = 40) +
+  labs(title = "Distribution of transaction count")
+
+p2 <- ggplot(customer2, aes(x = tx_total_amount)) +
+  geom_histogram(bins = 40) +
+  labs(title = "Distribution of total transaction amount")
+
+p3 <- ggplot(customer2, aes(x = tx_avg_amount)) +
+  geom_histogram(bins = 40) +
+  labs(title = "Distribution of average transaction amount")
+
+p1 + p2 + p3
+
+```
+
+The distributions of transaction count, total transaction amount, and average transaction amount are all highly right-skewed. Therefore, we use log transformation and standardization.
+
+```{r}
+cluster_vars_refined <- c(
+  "age",
+  "active_products",
+  "app_logins_frequency",
+  "feature_usage_diversity",
+  "credit_utilization_ratio",
+  "international_transactions",
+  "failed_transactions",
+  "satisfaction_score",
+  "support_tickets_count",
+  "weekend_transaction_ratio",
+  "customer_tenure",
+  "tx_n",
+  "tx_total_amount",
+  "tx_avg_amount",
+  "share_Deposit",
+  "share_Payment",
+  "share_Transfer",
+  "share_Withdrawal"
+)
+
+cluster_df <- customer2 %>%
+  select(customer_id, all_of(cluster_vars_refined))
+
+cluster_df2 <- cluster_df %>%
+  mutate(
+    credit_utilization_ratio = ifelse(
+      is.na(credit_utilization_ratio),
+      median(credit_utilization_ratio, na.rm = TRUE),
+      credit_utilization_ratio
+    ),
+    international_transactions = log1p(international_transactions),
+    failed_transactions = log1p(failed_transactions),
+    support_tickets_count = log1p(support_tickets_count),
+    tx_n = log1p(tx_n),
+    tx_total_amount = log1p(tx_total_amount),
+    tx_avg_amount = log1p(tx_avg_amount)
+  )
+p1_log <- ggplot(cluster_df2, aes(x = tx_n)) +
+  geom_histogram(bins = 40) +
+  labs(title = "Transaction count after log1p transformation")
+
+p2_log <- ggplot(cluster_df2, aes(x = tx_total_amount)) +
+  geom_histogram(bins = 40) +
+  labs(title = "Total transaction amount after log1p transformation")
+
+p3_log <- ggplot(cluster_df2, aes(x = tx_avg_amount)) +
+  geom_histogram(bins = 40) +
+  labs(title = "Average transaction amount after log1p transformation")
+
+p1_log + p2_log + p3_log
+```
+
+```{r}
+cluster_scaled <- cluster_df2 %>%
+  select(-customer_id) %>%
+  scale()
+
+cluster_scaled <- as.data.frame(cluster_scaled)
+
+summary(cluster_scaled)
+
+```
+
+The clustering workflow followed four preprocessing steps before model estimation. First, clustering variables were selected based on behavioral relevance. Second, missing values in `credit_utilization_ratio` were imputed using the median. Third, highly right-skewed variables were transformed using `log1p()` to reduce the influence of extreme values. Fourth, all retained variables were standardized so that no single measure would dominate the Euclidean distance calculation. A correlation review was then conducted on the processed variables to identify and remove highly redundant features.
+
+```{r}
+library(corrplot)
+
+cor_mat <- cor(cluster_scaled)
+
+corrplot(
+  cor_mat,
+  method = "color",
+  tl.cex = 0.6,
+  number.cex = 0.4
+)
+high_cor_pairs <- as.data.frame(as.table(cor_mat)) %>%
+  filter(Var1 != Var2, abs(Freq) > 0.85) %>%
+  arrange(desc(abs(Freq)))
+
+high_cor_pairs
+```
+
+### 3.2 Elbow Plot
+
+```{r}
+set.seed(123)
+
+wss <- numeric(8)
+
+for (k in 1:8) {
+  km <- kmeans(cluster_scaled, centers = k, nstart = 10, iter.max = 50)
+  wss[k] <- km$tot.withinss
+}
+
+elbow_df <- data.frame(
+  k = 1:8,
+  wss = wss
+)
+
+ggplot(elbow_df, aes(x = k, y = wss)) +
+  geom_line() +
+  geom_point() +
+  scale_x_continuous(breaks = 1:8) +
+  labs(
+    title = "Elbow Method for Optimal Number of Clusters",
+    x = "Number of clusters (k)",
+    y = "Total within-cluster sum of squares"
+  ) +
+  theme_minimal()
+
+```
+
+The Elbow plot shows k=3 and k=4 are the most plausible candidates for the final clustering solution.
+
+```{r}
+
+```
+
+### 3.3 Clustering
+
+#### 3.3.1 K=3 vs K=4
+
+```{r}
+set.seed(123)
+k3 <- kmeans(cluster_scaled, centers = 3, nstart = 25)
+
+cluster_assignment_3 <- cluster_df2 %>%
+  select(customer_id) %>%
+  mutate(cluster = factor(k3$cluster))
+
+customer_clustered_3 <- customer2 %>%
+  left_join(cluster_assignment_3, by = "customer_id")
+customer_clustered_3 %>%
+  count(cluster) %>%
+  mutate(pct = n / sum(n)) %>%
+  ggplot(aes(x = cluster, y = n, fill = cluster)) +
+  geom_col() +
+  geom_text(aes(label = scales::percent(pct, accuracy = 0.1)),
+            vjust = -0.3) +
+  labs(
+    title = "Cluster sizes (k = 3)",
+    x = "Cluster",
+    y = "Number of customers"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+cluster_profile_3 <- customer_clustered_3 %>%
+  group_by(cluster) %>%
+  summarise(
+    n = n(),
+    age = mean(age, na.rm = TRUE),
+    active_products = mean(active_products, na.rm = TRUE),
+    app_logins_frequency = mean(app_logins_frequency, na.rm = TRUE),
+    feature_usage_diversity = mean(feature_usage_diversity, na.rm = TRUE),
+    satisfaction_score = mean(satisfaction_score, na.rm = TRUE),
+    support_tickets_count = mean(support_tickets_count, na.rm = TRUE),
+    customer_tenure = mean(customer_tenure, na.rm = TRUE),
+    churn_probability = mean(churn_probability, na.rm = TRUE),
+    customer_lifetime_value = mean(customer_lifetime_value, na.rm = TRUE),
+    tx_n = mean(tx_n, na.rm = TRUE),
+    tx_total_amount = mean(tx_total_amount, na.rm = TRUE),
+    tx_avg_amount = mean(tx_avg_amount, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+cluster_profile_3
+```
+
+```{r}
+set.seed(123)
+k4 <- kmeans(cluster_scaled, centers = 4, nstart = 25)
+
+cluster_assignment_4 <- cluster_df2 %>%
+  select(customer_id) %>%
+  mutate(cluster = factor(k4$cluster))
+
+customer_clustered_4 <- customer2 %>%
+  left_join(cluster_assignment_4, by = "customer_id")
+customer_clustered_4 %>%
+  count(cluster) %>%
+  mutate(pct = n / sum(n)) %>%
+  ggplot(aes(x = cluster, y = n, fill = cluster)) +
+  geom_col() +
+  geom_text(aes(label = scales::percent(pct, accuracy = 0.1)),
+            vjust = -0.3) +
+  labs(
+    title = "Cluster sizes (k = 4)",
+    x = "Cluster",
+    y = "Number of customers"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+cluster_profile_4 <- customer_clustered_4 %>%
+  group_by(cluster) %>%
+  summarise(
+    n = n(),
+    age = mean(age, na.rm = TRUE),
+    active_products = mean(active_products, na.rm = TRUE),
+    app_logins_frequency = mean(app_logins_frequency, na.rm = TRUE),
+    feature_usage_diversity = mean(feature_usage_diversity, na.rm = TRUE),
+    satisfaction_score = mean(satisfaction_score, na.rm = TRUE),
+    support_tickets_count = mean(support_tickets_count, na.rm = TRUE),
+    customer_tenure = mean(customer_tenure, na.rm = TRUE),
+    churn_probability = mean(churn_probability, na.rm = TRUE),
+    customer_lifetime_value = mean(customer_lifetime_value, na.rm = TRUE),
+    tx_n = mean(tx_n, na.rm = TRUE),
+    tx_total_amount = mean(tx_total_amount, na.rm = TRUE),
+    tx_avg_amount = mean(tx_avg_amount, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+cluster_profile_4
+```
+
+K=3 solution was ultimately selected. Compared with the k=4 solution, the three-cluster structure provides clearer behavioral differentiation and more interpretable segment profiles. In particular, thek=3 model separates customers into lower-engagement lower-value users, frequent small-transaction users, and high-value power users. By contrast, the additional cluster in the k=4 solution mainly creates finer splits without introducing a substantively new behavioral segment.
+
+#### 3.3.2 PCA plot
+
+```{R}
+pca_res <- prcomp(cluster_scaled, center = FALSE, scale. = FALSE)
+
+pca_plot_df <- as_tibble(pca_res$x[, 1:2]) %>%
+  bind_cols(cluster = customer_clustered_3$cluster)
+
+ggplot(pca_plot_df, aes(x = PC1, y = PC2, color = cluster)) +
+  geom_point(alpha = 0.35, size = 1) +
+  labs(
+    title = "Customer clusters projected onto PCA space",
+    x = "Principal Component 1",
+    y = "Principal Component 2"
+  ) +
+  theme_minimal()
+```
+
+### 3.4 Cluster Interpretation
+
+#### 3.4.1 Heatmap
+
+```{R}
+profile_heat_3 <- customer_clustered_3 %>%
+  group_by(cluster) %>%
+  summarise(
+    feature_usage_diversity = mean(feature_usage_diversity, na.rm = TRUE),
+    satisfaction_score = mean(satisfaction_score, na.rm = TRUE),
+    support_tickets_count = mean(support_tickets_count, na.rm = TRUE),
+    customer_tenure = mean(customer_tenure, na.rm = TRUE),
+    churn_probability = mean(churn_probability, na.rm = TRUE),
+    customer_lifetime_value = mean(customer_lifetime_value, na.rm = TRUE),
+    tx_n = mean(tx_n, na.rm = TRUE),
+    tx_total_amount = mean(tx_total_amount, na.rm = TRUE),
+    tx_avg_amount = mean(tx_avg_amount, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  pivot_longer(-cluster, names_to = "variable", values_to = "value") %>%
+  group_by(variable) %>%
+  mutate(z = as.numeric(scale(value))) %>%
+  ungroup()
+
+ggplot(profile_heat_3, aes(x = variable, y = cluster, fill = z)) +
+  geom_tile() +
+  scale_fill_gradient2(low = "steelblue", mid = "white", high = "firebrick", midpoint = 0) +
+  labs(
+    title = "Standardized cluster profile heatmap (k = 3)",
+    x = NULL,
+    y = "Cluster",
+    fill = "Relative level"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+Cluster 3 stands out as the most valuable segment, with the highest relative levels of transaction frequency, total transaction amount, average transaction amount, customer lifetime value, and satisfaction score. This segment is therefore interpreted as a high-value power-user group. Cluster 2 shows a different pattern: it has the highest churn probability, the highest feature usage diversity, and relatively elevated support-ticket activity, yet its monetary indicators remain comparatively weak. This suggests a segment of active but at-risk customers. By contrast, Cluster 1 exhibits consistently lower levels across most engagement and value-related indicators, indicating a lower-engagement basic-user segment.
+
+#### 3.4.2 Boxplot
+
+```{r}
+p1 <- ggplot(customer_clustered_3, aes(x = cluster, y = tx_n, fill = cluster)) +
+  geom_boxplot(outlier.alpha = 0.2) +
+  labs(title = "Transaction count by cluster") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+p2 <- ggplot(customer_clustered_3, aes(x = cluster, y = tx_total_amount, fill = cluster)) +
+  geom_boxplot(outlier.alpha = 0.2) +
+  labs(title = "Total transaction amount by cluster") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+p3 <- ggplot(customer_clustered_3, aes(x = cluster, y = customer_lifetime_value, fill = cluster)) +
+  geom_boxplot(outlier.alpha = 0.2) +
+  labs(title = "Customer lifetime value by cluster") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+p1 + p2 + p3
+```
+
+The boxplots reinforce the behavioral interpretation of the selected clusters. Cluster 3 clearly dominates in transaction count, total transaction amount, and customer lifetime value, indicating that it represents the most commercially important customer group. Clusters 1 and 2 remain substantially lower on these value-related measures, although Cluster 2 appears to interact more actively with platform features and support services. Together, these visual comparisons confirm that the selected k=3solution separates customers into meaningfully different value and engagement profiles.
+
+## 4 Conclusion
+
+This clustering module demonstrates that meaningful customer segmentation can be achieved by combining customer-level attributes with transaction-derived behavioral features. The final k=3 solution identifies three interpretable segments: Low-Engagement Basic Users, At-Risk Active Users, and High-Value Power Users. These segments differ not only in transaction behavior and monetary value, but also in feature usage diversity, support interaction, satisfaction, and churn risk. As a prototype module for the final Shiny application, this clustering workflow provides a strong foundation for interactive exploration of customer heterogeneity and for linking behavioral segments with downstream predictive analysis.
+
+## 5.UI Design
+
+The proposed Shiny UI for the clustering module should support both overview and drill-down analysis. On the input side, users should be able to select the profiling metric of interest, switch between visualization modes, and optionally filter by customer characteristics such as segment or acquisition channel. On the output side, the module should provide:\
+(1) a cluster size summary chart,\
+(2) a PCA projection plot for structural overview,\
+(3) a standardized profile heatmap for segment comparison,\
+(4) boxplots for selected key indicators such as transaction count, transaction amount, and customer lifetime value, and\
+(5) a summary table describing the characteristics of each segment.\
+This design would allow end users to understand not only how large each customer segment is, but also how the segments differ in engagement, value, and risk.

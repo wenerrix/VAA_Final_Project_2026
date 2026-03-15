@@ -1,0 +1,190 @@
+---
+title: "Proposal_EDA"
+author: "Hazel He"
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm"
+format:
+  html:
+    css: styles_the4.css
+---
+
+# 1.Introduction
+
+This section sets up the analytical environment by loading core packages like tidyverse, tidygraph, and ggforce for data manipulation, network analysis, and advanced visualization. It then imports the raw customer and transaction datasets.
+
+```{r}
+pacman::p_load(igraph, tidygraph, ggraph, 
+               visNetwork, lubridate, clock,
+               tidyverse, graphlayouts, 
+               concaveman, ggforce,skimr, scales, tidyverse)
+
+customer <- read_csv("data/customer_data.csv")
+transactions <- read_csv("data/transactions_data.csv")
+
+glimpse(customer)
+glimpse(transactions)
+```
+
+# 2.Data Cleaning
+
+Data is standardized by cleaning column names and converting date formats. A key step involves aggregating granular transaction logs into customer-level metrics (e.g., frequency, average spend, and dominant transaction type), which are then merged with demographic data to create a comprehensive master dataframe.
+
+```{r}
+# clean column names
+customer <- customer %>% janitor::clean_names()
+transactions <- transactions %>% janitor::clean_names()
+
+# inspect names
+names(customer)
+names(transactions)
+
+# convert date if a date column exists
+if ("date" %in% names(transactions)) {
+  transactions <- transactions %>%
+    dplyr::mutate(date = as.Date(date))
+}
+
+# aggregate transaction-level data into customer-level behavioural indicators
+tx_summary <- transactions %>%
+  dplyr::group_by(customer_id) %>%
+  dplyr::summarise(
+    tx_total_count = dplyr::n(),
+    tx_avg_amount = mean(amount, na.rm = TRUE),
+    tx_total_amount = sum(amount, na.rm = TRUE),
+    tx_type_diversity = dplyr::n_distinct(type),
+    dominant_tx_type = names(sort(table(type), decreasing = TRUE))[1],
+    .groups = "drop"
+  )
+
+# merge customer and transaction summaries
+df <- customer %>%
+  dplyr::left_join(tx_summary, by = "customer_id")
+
+glimpse(df)
+summary(df)
+```
+
+# 3.Exploratory Data Analysis
+
+This stage uncovers business insights through visualization across three dimensions:
+
+Demographics: Examining age distribution and the relationship between education and income.
+
+Business Metrics: Analyzing the correlation between satisfaction and churn risk, and comparing churn probabilities across segments.
+
+Transaction Trends: Investigating the link between transaction frequency and average spend, alongside monthly total transaction trends.
+
+## Data Overview
+
+```{r}
+skim(df)
+```
+
+## Demographic Analysis
+
+```{r}
+# 1.Customer Age Distribution Characteristics (Histogram + Density Curve)
+ggplot(df, aes(x = age)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 30, fill = "#4C72B0", color = "white", alpha = 0.8) +
+  geom_density(color = "#C44E52", size = 1) +
+  labs(
+    title = "Customer Age Distribution Characteristics",
+    subtitle = "Age Range of the Platform's Core Customer Group",
+    x = "Age",
+    y = "Density"
+  ) +
+  theme_minimal() +
+  theme(plot.title = element_text(face = "bold", size = 14))
+
+# 2.Cross-Display of Income Class and Education Level 
+ggplot(df, aes(x = education_level, fill = income_bracket)) +
+  geom_bar(position = "fill", color = "black", alpha = 0.8) +
+  scale_y_continuous(labels = scales::percent_format()) + 
+  scale_fill_brewer(palette = "Blues") + 
+  labs(
+    title = "Proportion of Income Classes for Customers with Different Education Levels",
+    x = "Education Level",
+    y = "Rate",
+    fill = "Income Class"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+## Business Metrics
+
+```{r}
+# 1.Impact of Satisfaction on Churn Probability (Scatter Plot + Linear Regression Trend Line)
+ggplot(df, aes(x = satisfaction_score, y = churn_probability)) +
+  geom_point(alpha = 0.4, color = "#55A868") +
+  geom_smooth(method = "lm", color = "red", se = TRUE) + 
+  labs(
+    title = "Relationship Between Customer Satisfaction and Churn Risk",
+    subtitle = "Analyze Whether a Decline in Satisfaction Significantly Increases Churn Probability",
+    x = "Satisfaction Score",
+    y = "Churn Probability"
+  ) +
+  theme_minimal()
+
+# 2.Churn Risk Distribution Across Different Customer Groups (Box Plot)
+ggplot(df, aes(x = customer_segment, y = churn_probability, fill = customer_segment)) +
+  geom_boxplot(alpha = 0.7, outlier.color = "red", outlier.shape = 1) +
+  labs(
+    title = "Comparison of Churn Risk by Customer Tier",
+    x = "Customer Segment",
+    y = "Churn Probability"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+## Count vs. Average Amount
+
+```{r}
+# 3.Scatter Plot of Transaction Frequency vs. Average Transaction Amount
+ggplot(tx_summary, aes(x = tx_total_count, y = tx_avg_amount)) +
+  geom_point(alpha = 0.5, color = "#55A868") +
+  geom_smooth(method = "lm", color = "red", se = TRUE) + 
+  scale_y_continuous(labels = scales::comma_format()) +
+  labs(
+    title = "Transaction Activity vs. Average Single Transaction Amount",
+    subtitle = "Do high-frequency traders tend to have a lower average spending per transaction?",
+    x = "tx_total_count",
+    y = "tx_avg_amount"
+  ) +
+  theme_minimal()
+```
+
+## Monthly Transaction Amount Trend Chart
+
+```{r}
+monthly_trend <- transactions %>%
+  dplyr::mutate(
+    amount = as.numeric(amount),                             
+    month = lubridate::floor_date(lubridate::ymd(date), "month") 
+  ) %>% 
+  dplyr::group_by(month) %>%
+  dplyr::summarise(
+    monthly_total_amount = sum(amount, na.rm = TRUE)         
+  )
+
+ggplot(monthly_trend, aes(x = month, y = monthly_total_amount)) +
+  geom_line(color = "#2b8cbe", size = 1.2) +
+  geom_point(color = "#045a8d", size = 3) +
+  scale_y_continuous(labels = scales::comma_format()) + 
+  labs(
+    title = "Platform Monthly Total Transaction Amount Trend",
+    subtitle = "from transactions",
+    x = "time (month)",
+    y = "Total Transaction Amount of the Entire Platform"
+  ) +
+  theme_minimal() +
+  theme(plot.title = element_text(face = "bold", size = 14))
+```
+
+```{r}
+# save as RDS 
+saveRDS(df, "df.rds")
+saveRDS(transactions, "transactions.rds")
+saveRDS( tx_summary , "tx_summary.rds")
+```

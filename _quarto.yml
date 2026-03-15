@@ -1,0 +1,39 @@
+project:
+  type: website
+
+website:
+  title: "Colombian Fintech"
+  navbar:
+    left:
+      - text: "Proposal"
+        icon: "clipboard-data"
+        href: "proposal_site/Project%20Proposal.html"
+
+      - text: "Methodology"
+        icon: "database-fill-gear"
+        menu:
+          - text: "EDA"
+            href: "proposal_site/EDA.html"
+          - text: "Clustering"
+            href: "proposal_site/Clustering.html"
+          - text: "Decision Tree"
+            href: "proposal_site/TH2_DecisionTree.html"
+          - text: "Story Board & UI"
+            href: "proposal_site/storyboard.html"  
+          - text: "Minutes of Meeting"
+            href: "proposal_site/minutes%20of%20meeting.html"
+
+    right: 
+      - href: index.qmd
+        text: Home
+        icon: "house"
+      - about.qmd
+
+format:
+  html:
+    theme:
+      - cosmos
+    css: styles_index.css
+    toc: true
+
+editor: visual

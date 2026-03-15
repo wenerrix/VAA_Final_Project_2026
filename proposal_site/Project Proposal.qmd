@@ -1,0 +1,119 @@
+---
+title: "Project Proposal"
+format:
+  html:
+    css: styles_the4.css
+---
+
+## 1. Project Background
+
+The rapid growth of financial technology (fintech) services has transformed how individuals interact with financial institutions. Digital banking platforms, mobile payment systems, and online financial services generate large volumes of behavioural data that can provide valuable insights into customer usage patterns and financial behaviour.
+
+Understanding these patterns is critical for fintech companies, as it enables them to better segment customers, personalize services, and improve customer value management strategies. However, many fintech platforms still struggle to effectively translate raw behavioural data into interpretable insights that can guide business decisions.
+
+This project aims to explore customer behaviour in a fintech environment using a comprehensive dataset containing both customer-level attributes and detailed transaction records. Through visual analytics and interpretable machine learning techniques, the project seeks to uncover meaningful behavioural patterns and identify key drivers of customer value segmentation.
+
+------------------------------------------------------------------------
+
+## 2. Dataset Description
+
+The analysis uses a fintech customer behaviour dataset composed of two related tables:
+
+-   **Customer-level dataset (`customer_data.csv`)**
+-   **Transaction-level dataset (`transactions_data.csv`)**
+
+The customer-level dataset includes demographic attributes, product ownership information, satisfaction indicators, service interactions, and customer lifetime value (CLV) segmentation variables.
+
+The transaction-level dataset records detailed financial activities such as transaction amounts, transaction types, and usage frequency over time.
+
+To support behavioural analysis, transaction-level data will be aggregated into customer-level behavioural metrics (e.g., transaction frequency, average spending, and transaction diversity). These engineered features will then be merged with the customer-level dataset to create an integrated analytical dataset.
+
+------------------------------------------------------------------------
+
+## 3. Project Objectives
+
+The primary objectives of this project are:
+
+1.  To explore key patterns in fintech customer behaviour through exploratory data analysis (EDA).
+2.  To identify meaningful customer segments using clustering techniques.
+3.  To examine the key factors associated with customer lifetime value (CLV) segments using decision tree modelling.
+4.  To develop an interactive analytical prototype that allows users to explore segmentation patterns and predictive rules.
+
+Through these objectives, the project aims to demonstrate how visual analytics and interpretable machine learning methods can support data-driven decision making in fintech environments.
+
+------------------------------------------------------------------------
+
+## 4. Analytical Framework
+
+The analytical workflow of this project consists of three main components:
+
+### 4.1 Exploratory Data Analysis (EDA)
+
+The EDA stage focuses on understanding the structure and characteristics of the dataset. This includes:
+
+-   data cleaning and standardization,
+-   transaction aggregation into behavioural metrics,
+-   examination of variable distributions,
+-   correlation analysis between financial and behavioural variables.
+
+The goal of this stage is to uncover initial insights into customer behaviour and prepare the dataset for further analysis.
+
+------------------------------------------------------------------------
+
+### 4.2 Customer Segmentation using Clustering
+
+Clustering techniques will be applied to group customers with similar behavioural and demographic characteristics.
+
+By combining demographic variables, product ownership indicators, and transaction-derived behavioural features, clustering can reveal natural groupings within the customer base.
+
+These clusters provide insight into different types of fintech users, such as highly engaged digital users, moderate users, or low-engagement customers.
+
+------------------------------------------------------------------------
+
+### 4.3 CLV Segment Analysis using Decision Trees
+
+To further understand the drivers of customer value, a decision tree model will be developed to analyse the relationship between customer characteristics and **CLV segments**.
+
+Decision trees are selected because they provide:
+
+-   high interpretability,
+-   clear if–then decision rules,
+-   intuitive visualization of predictive structures.
+
+The model will help answer the key analytical question:
+
+**Which customer characteristics are most strongly associated with different CLV segments?**
+
+The resulting decision rules can provide interpretable insights into how demographic attributes, financial behaviour, and service interactions influence customer value classification.
+
+------------------------------------------------------------------------
+
+## 5. Expected Outcomes
+
+This project is expected to produce several analytical outputs:
+
+-   visual exploration of fintech customer behaviour,
+-   behavioural customer segmentation using clustering,
+-   interpretable predictive rules explaining CLV segmentation,
+-   an interactive Shiny-based analytical prototype.
+
+Together, these outputs aim to demonstrate how visual analytics techniques can transform fintech behavioural data into meaningful insights that support strategic decision-making.
+
+------------------------------------------------------------------------
+
+## 6. Prototype Design
+
+The final deliverable of this project will be an interactive analytical prototype implemented using **R Shiny**.
+
+The prototype will allow users to:
+
+-   explore customer segmentation results,
+-   visualize behavioural clusters,
+-   inspect decision tree structures,
+-   interpret key decision rules for CLV classification.
+
+This interactive interface is designed to support exploratory analysis and help users better understand the relationship between customer characteristics and fintech usage behaviour.
+
+## 7. Project Schedule
+
+![](Untitled%20diagram-2026-03-15-123956.png)

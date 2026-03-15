@@ -1,0 +1,65 @@
+/* Import Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Noto+Sans+TC:wght@400;600&display=swap');
+
+/* Global body font */
+body {
+  font-family: "Inter", "Noto Sans TC", -apple-system, BlinkMacSystemFont,
+               "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+p {
+  text-align: justify;
+  text-justify: inter-word;
+}
+
+
+h1 {
+  font-size: 26px;
+}
+
+h2 {
+  font-size: 20px;
+}
+
+h3 {
+  font-size: 18px;
+}
+
+
+/* Tabset (tab headers) */
+.nav-tabs .nav-link {
+  font-size: 15px;  
+}
+
+
+/* ---- TOC hierarchy tuning ---- */
+
+/* Level 1 */
+#TOC > ul > li > a {
+  font-size: 15px;
+}
+
+/* Level 2 */
+#TOC ul ul > li > a {
+  font-size: 13px;
+}
+
+/* Level 3 */
+#TOC ul ul ul > li > a {
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+/* ---- Push TOC to the right ---- */
+#TOC {
+  margin-left: auto;
+  padding-left: 12px;
+  max-width: 220px;
+}
+
+/* Hide TOC level 3 (###) and deeper */
+#TOC ul ul ul {
+  display: none;
+}

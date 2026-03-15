@@ -1,0 +1,477 @@
+---
+title: "Decision Tree Explorer for CLV Segment Analysis"
+author: "WEN Po-Yang"
+date: last-modified
+date-format: "YYYY-MM-DD HH:mm"
+format:
+  html:
+    css: styles_the4.css
+---
+
+## 1.Introduction:
+
+This prototype focuses on the Decision Tree Analysis module of our final visual analytics project.\
+
+The aim of this module is to help users identify which customer characteristics are most strongly associated with different customer lifetime value (CLV) segments.\
+
+A decision tree approach is selected because it is highly interpretable and can translate predictive patterns into simple if-then business rules.
+
+## 2.Data Source
+
+### 2.1 Data Source and Preparation:
+
+This prototype is based on two datasets:
+
+-   customer_data.csv
+-   transactions_data.csv
+
+The current prototype primarily uses \*\*\`customer_data.csv\`\*\* as the modeling table because it already contains customer-level demographic, product, behavioural, satisfaction, and value-related variables. The transaction-level dataset, \`transactions_data.csv\`, is reserved for future extension, where additional aggregated transaction features may be engineered and merged into the modeling dataset.
+
+### 2.2 Analytical target
+
+The selected target variable is: clv_segment
+
+This variable is suitable for a decision tree prototype because:
+
+1.  it is categorical,
+2.  it has direct business meaning,
+3.  it supports interpretable multi-class classification,
+4.  it aligns well with the group project's customer value analysis theme.
+
+The key analytical question is:
+
+**Which customer characteristics are most strongly associated with different CLV segments?**
+
+### 2.3 Variable selection
+
+To reduce unnecessary complexity in the first prototype, predictors are selected from several meaningful groups:
+
+-   demographic variables,
+-   product holding variables,
+-   app usage and engagement variables,
+-   transaction behaviour variables,
+-   satisfaction and support-related variables.
+
+Example predictors include:
+
+-   `age`
+-   `gender`
+-   `location`
+-   `income_bracket`
+-   `occupation`
+-   `education_level`
+-   `household_size`
+-   `savings_account`
+-   `credit_card`
+-   `investment_account`
+-   `active_products`
+-   `app_logins_frequency`
+-   `feature_usage_diversity`
+-   `bill_payment_user`
+-   `auto_savings_enabled`
+-   `tx_count`
+-   `avg_tx_value`
+-   `total_tx_volume`
+-   `transaction_frequency`
+-   `preferred_transaction_type`
+-   `customer_tenure`
+-   `satisfaction_score`
+-   `nps_score`
+-   `support_tickets_count`
+-   `app_store_rating`
+-   `feedback_sentiment`
+
+### 2.4 Excluded variables and leakage prevention
+
+Some variables are excluded to avoid **data leakage** or analytical redundancy. These include:
+
+-   `customer_id`
+-   `customer_lifetime_value`
+-   `first_tx`
+-   `last_tx`
+-   `first_transaction_date`
+-   `last_transaction_date`
+
+The main reason for excluding these fields is that they either function as identifiers or are too directly related to the target definition. Including such variables would artificially inflate model performance and reduce the interpretability value of the prototype.
+
+### 2.5 Data cleaning and preprocessing
+
+The following preprocessing steps are applied:
+
+1.  remove identifier and leakage-prone columns,
+2.  convert the target variable into a factor,
+3.  convert character variables into factors,
+4.  handle missing values,
+5.  prepare the dataset for train-test split.
+
+For missing value handling, a simple but robust approach is adopted:
+
+-   **numeric variables**: imputed using the median,
+-   **categorical variables**: assigned an `"Unknown"` category.
+
+This strategy is sufficient for the prototype stage because the main objective is to validate analytical feasibility and support UI design, rather than maximize model performance.
+
+## 3. Analytical Design
+
+### 3.1 Why decision tree?
+
+This prototype adopts a **classification tree** model for the `clv_segment` target. The main reason is that decision trees provide a strong balance between analytical usefulness and interpretability.
+
+A decision tree is especially suitable in this project context for the following reasons:
+
+-   it produces human-readable rules,
+-   it helps users understand which variables drive customer classification,
+-   it can be displayed visually in an intuitive way,
+-   it supports interactive parameter tuning in a Shiny environment.
+
+Unlike more complex ensemble models, the tree structure itself is part of the analytical output. This makes it appropriate for visual analytics, where users are expected not only to obtain results, but also to interpret the model logic.
+
+### 3.2 Design emphasis: interpretability over accuracy
+
+The goal of this module is not simply to maximize predictive accuracy. Instead, the design emphasizes:
+
+-   transparency,
+-   visual interpretability,
+-   user interaction,
+-   business explanation.
+
+For this reason, the prototype allows the user to adjust parameters such as:
+
+-   maximum tree depth,
+-   minimum split size,
+-   complexity parameter,
+-   predictor group selection.
+
+By changing these parameters, users can compare a simpler tree against a more complex tree and evaluate the trade-off between readability and classification performance.
+
+### 3.3 User-oriented analytical outputs
+
+The prototype is designed to generate several types of outputs:
+
+1.  Tree visualization
+
+2.  Model performance summary
+
+3.  Rules table
+
+4.  Business insights section
+
+This design reflects the needs of both technical and non-technical users. A technical user may want to inspect model behaviour, while a business stakeholder may be more interested in the high-level decision rules.
+
+## 4. Prototype Implementation
+
+This section presents the technical implementation of the decision tree prototype.\
+The workflow includes:
+
+1.  loading required R packages
+2.  loading the datasets
+3.  performing data preprocessing
+4.  preparing the modeling dataset
+5.  training a classification tree
+6.  evaluating model performance
+7.  visualizing the tree structure
+8.  extracting terminal node summaries for interpretation
+
+The goal of this implementation is not to build the most accurate predictive model, but rather to validate the feasibility of an interpretable decision tree module that can later be integrated into the final Shiny visual analytics application.
+
+------------------------------------------------------------------------
+
+### 4.1 Loading Required R Packages
+
+The following R packages are used in this prototype:
+
+-   **tidyverse** – data manipulation and cleaning\
+-   **forcats** – factor handling\
+-   **rpart** – decision tree modeling\
+-   **rpart.plot** – tree visualization\
+-   **caret** – model evaluation and confusion matrix\
+-   **DT** – interactive table output for later Shiny integration
+
+```{r}
+#| warning: false
+pacman::p_load(
+  tidyverse,
+  forcats,
+  rpart,
+  rpart.plot,
+  caret,
+  DT
+)
+```
+
+### 4.2 Loading the Dataset
+
+Two datasets are provided in the project:
+
+-   **customer_data.csv** – customer-level features
+-   **transactions_data.csv** – transaction-level records
+
+For the current prototype, the primary modeling dataset is **customer_data.csv**, because it already contains aggregated behavioral and demographic variables.
+
+```{r}
+customer_data <- read_csv("data/customer_data.csv")
+transactions_data <- read_csv("data/transactions_data.csv")
+
+glimpse(customer_data)
+```
+
+The `customer_data` table contains customer-level attributes including:
+
+-   demographic information
+-   product holdings
+-   transaction behavior summaries
+-   satisfaction indicators
+-   customer value metrics
+-   CLV segment label
+
+### 4.3 Data Preprocessing
+
+To prepare the dataset for modeling, several preprocessing steps are performed.
+
+These steps include:
+
+1.  removing identifier and leakage-prone variables
+2.  converting categorical variables to factors
+3.  handling missing values
+4.  preparing the final modeling table
+
+Variables that may cause **data leakage** are removed before modeling. These include identifiers and variables that directly encode customer lifetime value.
+
+```{r}
+customer_model <- customer_data %>%
+  
+  select(
+    -customer_id,
+    -customer_lifetime_value,
+    -first_tx,
+    -last_tx,
+    -first_transaction_date,
+    -last_transaction_date
+  ) %>%
+  
+  mutate(
+    clv_segment = as.factor(clv_segment)
+  ) %>%
+  
+  mutate(across(where(is.character), as.factor)) %>%
+  
+  mutate(
+    location = forcats::fct_lump_n(location, n = 10),
+    occupation = forcats::fct_lump_n(occupation, n = 10)
+  )
+```
+
+**Handling Missing Values**
+
+Missing values are handled using simple imputation strategies suitable for a prototype stage.
+
+-   Numeric variables → imputed with median
+-   Factor variables → assigned "Unknown" category
+
+```{r}
+#| warning: false
+for (col in names(customer_model)) {
+  
+  if (is.numeric(customer_model[[col]])) {
+    
+    customer_model[[col]][is.na(customer_model[[col]])] <-
+      median(customer_model[[col]], na.rm = TRUE)
+    
+  } else if (is.factor(customer_model[[col]])) {
+    
+    customer_model[[col]] <-
+      fct_na_value_to_level(customer_model[[col]], level = "Unknown")
+  }
+}
+```
+
+After preprocessing, the dataset is ready for modeling.
+
+```{r}
+glimpse(customer_model)
+```
+
+### 4.4 Selecting Predictors
+
+To construct the classification tree, a set of meaningful predictors is selected from demographic, product, behavioral, and satisfaction-related features.
+
+```{r}
+predictors <- c(
+  "age",
+  "gender",
+  "location",
+  "income_bracket",
+  "occupation",
+  "education_level",
+  "household_size",
+  "savings_account",
+  "credit_card",
+  "investment_account",
+  "active_products",
+  "app_logins_frequency",
+  "feature_usage_diversity",
+  "bill_payment_user",
+  "auto_savings_enabled",
+  "tx_count",
+  "avg_tx_value",
+  "total_tx_volume",
+  "transaction_frequency",
+  "preferred_transaction_type",
+  "customer_tenure",
+  "satisfaction_score",
+  "nps_score",
+  "support_tickets_count",
+  "app_store_rating",
+  "feedback_sentiment"
+)
+
+# keep only predictors that exist in dataset
+predictors <- predictors[predictors %in% names(customer_model)]
+
+model_df <- customer_model %>%
+  select(all_of(c("clv_segment", predictors))) %>%
+  drop_na()
+
+glimpse(model_df)
+```
+
+### 4.5 Train-Test Split
+
+The dataset is split into training and testing subsets to evaluate classification performance.
+
+A 70% training / 30% testing split is used.
+
+```{r}
+#| warning: false
+set.seed(123)
+
+train_index <- createDataPartition(
+  model_df$clv_segment,
+  p = 0.7,
+  list = FALSE
+)
+
+train_data <- model_df[train_index, ]
+test_data  <- model_df[-train_index, ]
+
+dim(train_data)
+dim(test_data)
+```
+
+### 4.6 Training the Decision Tree
+
+A classification tree is trained using the rpart package.
+
+Key parameters used in this prototype include:
+
+-   maxdepth = 4
+-   minsplit = 30
+-   cp = 0.01
+
+These values help maintain a **moderately interpretable tree structure**.
+
+```{r}
+tree_formula <- as.formula(
+  paste("clv_segment ~", paste(predictors, collapse = " + "))
+)
+
+tree_model <- rpart(
+  tree_formula,
+  data = train_data,
+  method = "class",
+  control = rpart.control(
+    maxdepth = 4,
+    minsplit = 30,
+    cp = 0.01
+  )
+)
+
+tree_model
+```
+
+### 4.7 Model Evaluation
+
+The model is evaluated using predictions on the test dataset.
+
+```{r}
+tree_predictions <- predict(
+  tree_model,
+  test_data,
+  type = "class"
+)
+
+conf_matrix <- confusionMatrix(
+  tree_predictions,
+  test_data$clv_segment
+)
+
+conf_matrix
+```
+
+The confusion matrix provides several useful metrics, including:
+
+-   overall accuracy
+-   sensitivity and specificity
+-   class-level performance
+
+These metrics help assess whether the decision tree provides reasonable classification results.
+
+### 4.8 Decision Tree Visualization
+
+One of the most important outputs of this module is the tree visualization, which allows users to understand how the classification is performed.
+
+```{r}
+rpart.plot(
+  tree_model,
+  type = 2,
+  extra = 104,
+  fallen.leaves = TRUE,
+  box.palette = "GnBu"
+)
+```
+
+The tree diagram shows:
+
+-   which variables are used for splitting,
+-   how customers are divided into segments,
+-   which terminal nodes correspond to specific CLV groups.
+
+This visual structure makes the model highly interpretable.
+
+### 4.9 Extracting Terminal Node Rules
+
+To support rule interpretation, information from the terminal nodes of the tree can be extracted.
+
+```{r}
+leaf_nodes <- tibble(
+  node = rownames(tree_model$frame),
+  split_variable = tree_model$frame$var,
+  sample_size = tree_model$frame$n,
+  predicted_class = tree_model$frame$yval
+) %>%
+  filter(split_variable == "<leaf>")
+
+leaf_nodes
+```
+
+Each terminal node corresponds to a set of **implicit classification rules** derived from the path of splits leading to that node.
+
+These rules can later be translated into human-readable statements such as:
+
+<!--# If transaction volume is high and the number of active products is large, the customer is likely to belong to a higher CLV segment. -->
+
+In the final Shiny application, these rules will be presented in a more interactive and interpretable format.
+
+### 4.10 Summary
+
+This section demonstrates a full implementation pipeline for the decision tree prototype:
+
+-   loading datasets
+-   preprocessing data
+-   selecting predictors
+-   training a classification tree
+-   evaluating model performance
+-   visualizing the decision tree
+-   extracting terminal node information
+
+The results confirm that a decision tree model can be successfully constructed using the available customer-level dataset. The tree structure also provides interpretable patterns that can be integrated into the final visual analytics dashboard.

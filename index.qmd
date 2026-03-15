@@ -1,0 +1,23 @@
+---
+title: " "
+toc: false
+format:
+  html:
+    css: styles_the4.css
+---
+
+# **Understanding Fintech Users in Colombia:** *An Interactive Visual Analytics Study Using the COFINFAD Dataset*
+
+![](ChatGPT%20Image%20Mar%2015,%202026,%2009_27_57%20PM.png){width="852"}
+
+**Project Workflow: EDA → Clustering → Decision Tree → Insights**
+
+This project explores fintech usage patterns in Colombia using the COFINFAD (Colombian Fintech Financial Analytics Dataset). The objective is to understand customer behaviour, identify meaningful user segments, and uncover key factors associated with fintech adoption.
+
+The analysis begins with Exploratory Data Analysis (EDA) to examine the structure of the dataset and identify important patterns and relationships among financial and demographic variables. Clustering techniques are then applied to discover natural groupings of users based on their financial behaviour and service usage.
+
+To further interpret these patterns, a decision tree model is developed to identify the most important factors that influence fintech user segmentation. The model provides interpretable rules that help explain how different customer characteristics contribute to fintech usage patterns.
+
+Together, these analytical steps provide a comprehensive view of fintech behaviour in Colombian Area. The results are presented through interactive visualisations and an analytical prototype designed to support data-driven insights and decision-making.
+
+**© 2026 ISSS608VAA \| SMU \| All rights reserved.**
