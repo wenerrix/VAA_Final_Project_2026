@@ -1,3 +1,2 @@
 [build]
-command = "curl -L https://quarto.org/download/latest/quarto-linux-amd64.tar.gz | tar zx -C /opt/buildhome && /opt/buildhome/quarto/bin/quarto render"
 publish = "_site"
