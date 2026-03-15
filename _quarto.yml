@@ -27,7 +27,9 @@ website:
       - href: index.qmd
         text: Home
         icon: "house"
-      - about.qmd
+      - href: https://github.com/wenerrix/VAA_Final_Project_2026
+        text: GitHub
+        icon: github
 
 format:
   html:
