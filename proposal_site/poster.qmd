@@ -1,0 +1,8 @@
+---
+title: "The Poster"
+format:
+  html:
+    css: styles_the4.css
+---
+
+![](Slide1.JPG){width="686"}

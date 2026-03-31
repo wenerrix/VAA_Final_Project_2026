@@ -22,7 +22,16 @@ website:
             href: "proposal_site/storyboard.html"  
           - text: "Minutes of Meeting"
             href: "proposal_site/minutes%20of%20meeting.html"
-
+      - text: "Shiny App"
+        icon: "intersect"
+        href: "https://your-shiny-app-url.com"
+      - text: "User Guide"  
+        icon: "person workspace"
+        href: "proposal_site/User_Guide.html"
+      - text: "Poster"  
+        icon: "easel fill"
+        href: "proposal_site/poster.html"
+    
     right: 
       - href: index.qmd
         text: Home
