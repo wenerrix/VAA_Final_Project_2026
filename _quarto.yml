@@ -31,7 +31,10 @@ website:
       - text: "Poster"  
         icon: "easel fill"
         href: "proposal_site/poster.html"
-    
+      - text: "Who We Are"  
+        icon: "person-raised-hand"
+        href: "proposal_site/who_we_are.html"
+        
     right: 
       - href: index.qmd
         text: Home

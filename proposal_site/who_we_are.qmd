@@ -1,0 +1,16 @@
+---
+title: "Who we are"
+format:
+  html:
+    css: styles_the4.css
+---
+
+We developed this project for ISSS608 (Visual Analytics and Applications) during Academic Year 2025-26 in Singapore Management University under the guidance of Dr. Kam Tin Seong, Associate Professor of Information Systems.
+
+Members :
+
+• [WEN POYANG](https://isss608vaa-ay2025.netlify.app/)
+
+• [HE XIAOYI](https://isss608-ay2025-26g1.netlify.app)
+
+• [ZHOU ZIYING](https://isss-608.vercel.app)
